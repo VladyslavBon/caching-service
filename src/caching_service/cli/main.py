@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -9,6 +10,9 @@ from pydantic import AliasChoices, ValidationError
 
 from caching_service.cli.runner import CliError, run
 from caching_service.cli.settings import STDIO, CliSettings
+from caching_service.core.logging import configure_logging
+
+logger = logging.getLogger(__name__)
 
 EXIT_FAILURE = 1
 EXIT_USAGE = 2
@@ -25,14 +29,14 @@ def _flag_names() -> dict[str, str]:
     return names
 
 
-def _format_validation_error(error: ValidationError) -> str:
+def _validation_messages(error: ValidationError) -> list[str]:
     flags = _flag_names()
-    lines = []
+    messages = []
     for item in error.errors():
         message = item["msg"].removeprefix("Value error, ")
         location = str(item["loc"][0]) if item["loc"] else None
-        lines.append(f"{flags.get(location, location)}: {message}" if location else message)
-    return "\n".join(f"cache-cli: error: {line}" for line in lines)
+        messages.append(f"{flags.get(location, location)}: {message}" if location else message)
+    return messages
 
 
 @contextmanager
@@ -51,15 +55,19 @@ async def _run(settings: CliSettings, out: TextIO) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Results go to stdout/--output; diagnostics go to stderr through logging.
+    # force: this is the process entry point, so it owns the logging configuration.
+    configure_logging("INFO", fmt="cache-cli: %(levelname)s: %(message)s", force=True)
     try:
         settings = CliSettings(_cli_parse_args=list(argv) if argv is not None else True)
         with _open_output(settings.output) as out:
             asyncio.run(_run(settings, out))
     except ValidationError as error:
-        print(_format_validation_error(error), file=sys.stderr)
+        for message in _validation_messages(error):
+            logger.error("%s", message)
         return EXIT_USAGE
     except (CliError, OSError) as error:
-        print(f"cache-cli: error: {error}", file=sys.stderr)
+        logger.error("%s", error)
         return EXIT_FAILURE
     return 0
 

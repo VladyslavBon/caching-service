@@ -23,7 +23,9 @@ target_metadata = Base.metadata
 
 # An explicitly configured URL (e.g. from tests) wins over the application settings.
 if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", str(get_settings().database_url))
+    url = get_settings().async_database_url.render_as_string(hide_password=False)
+    # The ini parser treats % as interpolation syntax, so a literal % must be doubled.
+    config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

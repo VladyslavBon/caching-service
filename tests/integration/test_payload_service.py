@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 import pytest
@@ -128,3 +129,20 @@ async def test_concurrent_identical_requests_resolve_to_one_payload(
     assert len(set(ids)) == 1
     async with session_factory() as session:
         assert await session.scalar(select(func.count()).select_from(Payload)) == 1
+
+
+async def test_logs_counts_but_not_the_input_strings(
+    session_factory: async_sessionmaker[AsyncSession], caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="caching_service")
+    async with session_factory() as session:
+        service = make_service(session, CountingTransformer())
+        await service.create(["secret-a", "b"], ["c", "d"])
+        await service.create(["secret-a", "x"], ["c", "y"])
+        await service.create(["secret-a", "x"], ["c", "y"])
+
+    created_1, created_2, reused = [r.getMessage() for r in caplog.records]
+    assert "4 distinct strings, 0 served from cache, 4 transformed" in created_1
+    assert "4 distinct strings, 2 served from cache, 2 transformed" in created_2
+    assert "reused" in reused
+    assert "secret-a" not in caplog.text

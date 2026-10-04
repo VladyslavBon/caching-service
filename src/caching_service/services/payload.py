@@ -1,3 +1,4 @@
+import logging
 import uuid
 from dataclasses import dataclass
 
@@ -12,6 +13,8 @@ from caching_service.transformer.base import Transformer
 from caching_service.transformer.batch import transform_many
 
 OUTPUT_SEPARATOR = ", "
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,7 @@ class PayloadService:
         input_hash = hash_payload_input(list_1, list_2)
         existing_id = await self._find_payload_id(input_hash)
         if existing_id is not None:
+            logger.info("Payload %s reused: identical input seen before", existing_id)
             return CreateResult(existing_id, created=False)
 
         strings = list(dict.fromkeys([*list_1, *list_2]))
@@ -57,10 +61,19 @@ class PayloadService:
         await self._session.commit()
 
         if payload_id is not None:
+            # Only counts and ids are logged: the strings themselves may be sensitive.
+            logger.info(
+                "Payload %s created: %d distinct strings, %d served from cache, %d transformed",
+                payload_id,
+                len(strings),
+                len(cached),
+                len(fresh),
+            )
             return CreateResult(payload_id, created=True)
         # A concurrent request stored the same payload first; its id is the canonical one.
         winner_id = await self._find_payload_id(input_hash)
         assert winner_id is not None
+        logger.info("Payload %s was created concurrently, reusing it", winner_id)
         return CreateResult(winner_id, created=False)
 
     async def get_output(self, payload_id: uuid.UUID) -> str | None:
