@@ -19,6 +19,9 @@ dependencies = [
     "uvicorn>=0.54.0",
 ]
 
+[project.scripts]
+cache-cli = "caching_service.cli.main:main"
+
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
