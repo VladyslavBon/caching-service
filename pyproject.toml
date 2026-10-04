@@ -47,3 +47,16 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["caching_service"]
+branch = true
+# SQLAlchemy's async layer runs on greenlets; without this, code executed after a
+# greenlet switch (e.g. the rest of a route handler) is wrongly reported as not covered.
+concurrency = ["greenlet", "thread"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+    "if __name__ == .__main__.:",
+]

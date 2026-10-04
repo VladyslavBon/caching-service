@@ -1,5 +1,6 @@
 import io
 from pathlib import Path
+from typing import TextIO
 
 import pytest
 from pydantic import ValidationError
@@ -111,3 +112,35 @@ def test_main_reports_unreachable_server_with_exit_code_1(
     # Port 1 is reserved and not listening, so the connection is refused immediately.
     assert main(["--host", "http://127.0.0.1:1", "-j", REQUEST_JSON]) == 1
     assert "cannot reach the server" in capsys.readouterr().err
+
+
+def test_main_writes_results_to_the_output_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_run(settings: CliSettings, out: TextIO) -> None:
+        out.write('{"iteration": 1}\n')
+
+    monkeypatch.setattr("caching_service.cli.main._run", fake_run)
+    target = tmp_path / "results.jsonl"
+
+    assert main(["-j", REQUEST_JSON, "-o", str(target)]) == 0
+    assert target.read_text(encoding="utf-8") == '{"iteration": 1}\n'
+
+
+def test_main_reports_an_unwritable_output_path_with_exit_code_1(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["-j", REQUEST_JSON, "-o", str(tmp_path / "missing" / "out.jsonl")]) == 1
+    assert "cache-cli: ERROR" in capsys.readouterr().err
+
+
+def test_main_writes_results_to_stdout_by_default(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def fake_run(settings: CliSettings, out: TextIO) -> None:
+        out.write('{"iteration": 1}\n')
+
+    monkeypatch.setattr("caching_service.cli.main._run", fake_run)
+
+    assert main(["-j", REQUEST_JSON]) == 0
+    assert capsys.readouterr().out == '{"iteration": 1}\n'

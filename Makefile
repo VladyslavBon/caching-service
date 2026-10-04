@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-unit test-integration lint format run migrate db db-clean up down
+.PHONY: help install test test-unit test-integration coverage lint format run migrate db db-clean up down
 
 # Plain echo instead of grep/awk: on Windows make runs recipes through cmd.exe,
 # where those tools do not exist. Keep this list in sync with the targets below, and
@@ -10,6 +10,7 @@ help: ## Show this help
 	@echo test              Run all tests
 	@echo test-unit         Run unit tests only
 	@echo test-integration  Run integration tests only
+	@echo coverage          Run all tests and print a per-file coverage table
 	@echo lint              Check style, formatting and types, changes nothing
 	@echo format            Fix lint issues and format the code
 	@echo db                Start only the Postgres container
@@ -30,6 +31,9 @@ test-unit: ## Run unit tests only
 
 test-integration: ## Run integration tests only
 	uv run pytest tests/integration
+
+coverage: ## Run all tests and print a per-file coverage table
+	uv run pytest --cov
 
 lint: ## Check style, formatting and types (changes nothing)
 	uv run ruff check .

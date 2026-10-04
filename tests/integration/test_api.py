@@ -113,3 +113,15 @@ async def test_input_over_limits_is_rejected(
 
 async def test_health(client: AsyncClient) -> None:
     assert (await client.get("/health")).json() == {"status": "ok"}
+
+
+async def test_default_wiring_uses_the_simulated_transformer(
+    engine: AsyncEngine, settings: Settings
+) -> None:
+    # No transformer override here: this exercises the app exactly as it is assembled
+    # in production, with the real (simulated) transformer from the settings.
+    async with running_client(settings) as client:
+        created = await client.post("/payload", json=BODY)
+        read = await client.get(f"/payload/{created.json()['id']}")
+
+    assert read.json() == {"output": EXPECTED}
