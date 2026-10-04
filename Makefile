@@ -1,20 +1,23 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-unit test-integration lint format run migrate db up down
+.PHONY: help install test test-unit test-integration lint format run migrate db db-clean up down
 
 # Plain echo instead of grep/awk: on Windows make runs recipes through cmd.exe,
-# where those tools do not exist. Keep this list in sync with the targets below.
+# where those tools do not exist. Keep this list in sync with the targets below, and
+# avoid shell metacharacters such as parentheses or semicolons in the text, as sh
+# treats them as syntax.
 help: ## Show this help
 	@echo install           Install dependencies into .venv
 	@echo test              Run all tests
 	@echo test-unit         Run unit tests only
 	@echo test-integration  Run integration tests only
-	@echo lint              Check style, formatting and types (changes nothing)
+	@echo lint              Check style, formatting and types, changes nothing
 	@echo format            Fix lint issues and format the code
 	@echo db                Start only the Postgres container
 	@echo migrate           Apply database migrations
-	@echo run               Run the service locally with auto-reload (starts Postgres in Docker)
+	@echo db-clean          Delete all cached data, keeping the schema. Needs a running database
+	@echo run               Run the service locally with auto-reload, starts Postgres in Docker
 	@echo up                Run the service and its database in Docker Compose
-	@echo down              Stop Docker Compose (data volume is kept)
+	@echo down              Stop Docker Compose, the data volume is kept
 
 install: ## Install dependencies into .venv
 	uv sync
@@ -42,6 +45,9 @@ db: ## Start only the Postgres container (for running the service locally)
 
 migrate: ## Apply database migrations
 	uv run alembic upgrade head
+
+db-clean: ## Delete all cached data, keeping the schema (database must be running)
+	uv run python scripts/clean_db.py
 
 run: db migrate ## Run the service locally with auto-reload (needs Docker for Postgres)
 	uv run uvicorn caching_service.main:app --reload
