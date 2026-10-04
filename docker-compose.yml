@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-caching_service}
+    ports:
+      # Published so the service can also be run locally (`make run`) against this database.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-caching_service}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    environment:
+      # Same variables as the db service, so credentials are defined in one place.
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-caching_service}
+      # The .env file is not copied into the image, so the settings it defines must be
+      # forwarded explicitly. Defaults mirror the ones in the application.
+      MAX_LIST_LENGTH: ${MAX_LIST_LENGTH:-1000}
+      MAX_STRING_LENGTH: ${MAX_STRING_LENGTH:-1000}
+      TRANSFORMER_DELAY_SECONDS: ${TRANSFORMER_DELAY_SECONDS:-0.1}
+      TRANSFORMER_MAX_CONCURRENCY: ${TRANSFORMER_MAX_CONCURRENCY:-10}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
